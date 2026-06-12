@@ -1,36 +1,29 @@
-  const mongoose = require('mongoose');
-  const Schema = mongoose.Schema;
+// src/model/donacion.js — v1.0.0 (Sequelize / PostgreSQL)
+// Mapeo de campos MongoDB → PostgreSQL:
+//   owner    (persona ObjectId) → persona_id
+//   historial (user ObjectId)  → user_id
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../db/sequelize');
 
-  // Esquema para Donacion
-  const donacionSchema = new Schema({
-      donacion: {
-        type: String,
-        required: true,
-        trim: true
-      },
-      cantidad: {
-        type: Number,
-        required: true,
-        trim: true
-      },
-      fecha: {
-        type: Date,
-        required: true,
-        default: Date.now
-      },
-      owner: {
-        type: Schema.Types.ObjectId,
-        ref: 'persona', // Referencia al modelo de usuario
-        required: true
-      },
-      historial:{
-        type: Schema.Types.ObjectId,
-        ref: 'user', // Referencia al modelo de usuario
-        required: true
-      }
-    });
+const Donacion = sequelize.define('Donacion', {
+  id:        { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  donacion:  { type: DataTypes.STRING,  allowNull: false },
+  cantidad:  { type: DataTypes.INTEGER, allowNull: false },
+  fecha:     { type: DataTypes.DATE,    defaultValue: DataTypes.NOW },
+  personaId: { type: DataTypes.INTEGER }, // → persona_id (ex-owner)
+  userId:    { type: DataTypes.INTEGER }  // → user_id    (ex-historial)
+}, {
+  tableName:   'donaciones',
+  underscored: true,
+  updatedAt:   false   // la tabla donaciones no tiene updated_at
+});
 
-    
-    const Donacion = mongoose.model('donaciones', donacionSchema)
+Donacion.prototype.toJSON = function () {
+  const v = this.get({ plain: true });
+  v._id      = v.id;
+  v.owner    = v.personaId;    // compatibilidad frontend
+  v.historial = v.userId;
+  return v;
+};
 
-  module.exports = Donacion;
+module.exports = Donacion;

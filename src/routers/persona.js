@@ -1,5 +1,6 @@
-// fix(personas): auth en todas las rutas + resolver conflicto /:cedula vs /:id — v0.1.0
+// src/routers/persona.js — v1.0.0 (Sequelize / PostgreSQL)
 const express = require('express');
+const { Op }  = require('sequelize');
 const Persona = require('../model/persona');
 const auth    = require('../middleware/auth');
 const router  = new express.Router();
@@ -7,89 +8,73 @@ const router  = new express.Router();
 // Crear persona
 router.post('/personas/register', auth, async (req, res) => {
   try {
-    const persona = new Persona({ ...req.body, owner: req.user._id });
-    await persona.save();
+    const persona = await Persona.create({ ...req.body, ownerId: req.user.id });
     res.status(201).json(persona);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
   }
 });
 
-// Listar todas las personas
+// Listar todas
 router.get('/personas', auth, async (req, res) => {
   try {
-    const personas = await Persona.find();
+    const personas = await Persona.findAll();
     res.json(personas);
-  } catch (error) {
+  } catch (e) {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-// FIX: rutas específicas ANTES de la ruta genérica /:param
-// Buscar por cédula — ruta explícita con prefijo "cedula"
-// El frontend llama GET /personas/cedula/000-0000000-0
+// Buscar por cédula — ruta específica ANTES de /:id
 router.get('/personas/cedula/:cedula', auth, async (req, res) => {
   try {
-    const persona = await Persona.findOne({ cedula: req.params.cedula });
+    const persona = await Persona.findOne({ where: { cedula: req.params.cedula } });
     if (!persona) return res.status(404).json({ error: 'Persona no encontrada' });
     res.json(persona);
-  } catch (error) {
+  } catch (e) {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-// Buscar por ID de MongoDB
+// Buscar por ID — también acepta cédula para compatibilidad con frontend
 router.get('/personas/:id', auth, async (req, res) => {
   try {
-    const persona = await Persona.findById(req.params.id);
+    const { id } = req.params;
+    // Si el param tiene guiones, es una cédula; si es número, es ID
+    const persona = isNaN(id)
+      ? await Persona.findOne({ where: { cedula: id } })
+      : await Persona.findByPk(id);
     if (!persona) return res.status(404).json({ error: 'Persona no encontrada' });
     res.json(persona);
-  } catch (error) {
+  } catch (e) {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-
-
-
+// Actualizar
 router.patch('/personas/:id', auth, async (req, res) => {
-    const updates = Object.keys(req.body);
-    const allowedUpdates = ['nombre', 'cedula', 'telefono', 'zona', 'direccion','sector'];
-    const isValidOperation = updates.every(update => allowedUpdates.includes(update));
-
-    if (!isValidOperation) {
-        return res.status(400).send({ error: 'Actualización inválida.' });
-    }
-
-    try {
-        // Buscar la persona por id y dueño
-        const persona = await Persona.findOne({ _id: req.params.id, owner: req.user._id });
-
-        if (!persona) {
-            return res.status(404).send();
-        }
-
-        // Actualizar los campos permitidos
-        updates.forEach(update => persona[update] = req.body[update]);
-        await persona.save();
-
-        res.send(persona);
-    } catch (error) {
-        res.status(400).send(error);
-    }
+  const allowed = ['nombre', 'cedula', 'telefono', 'zona', 'direccion', 'sector'];
+  try {
+    const persona = await Persona.findByPk(req.params.id);
+    if (!persona) return res.status(404).json({ error: 'Persona no encontrada' });
+    allowed.forEach(k => { if (req.body[k] !== undefined) persona[k] = req.body[k]; });
+    await persona.save();
+    res.json(persona);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
+// Eliminar
 router.delete('/personas/:id', auth, async (req, res) => {
-    try {
-        const persona = await Persona.findOneAndDelete({ _id: req.params.id, owner: req.user._id });
-
-        if (!persona) {
-            return res.status(404).send();
-        }
-
-        res.send(persona);
-    } catch (error) {
-        res.status(500).send();
-    }
+  try {
+    const persona = await Persona.findByPk(req.params.id);
+    if (!persona) return res.status(404).json({ error: 'Persona no encontrada' });
+    await persona.destroy();
+    res.json(persona);
+  } catch (e) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
-module.exports = router
+
+module.exports = router;

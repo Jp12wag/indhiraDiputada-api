@@ -1,126 +1,74 @@
-// fix(auth): JWT secret desde process.env — v0.1.0
+// src/model/user.js — v1.0.0 (Sequelize / PostgreSQL)
 require('dotenv').config();
-const mongoose  = require('mongoose');
-const validator = require('validator');
-const bcrypt    = require('bcryptjs');
-const jwt       = require('jsonwebtoken');
+const { DataTypes } = require('sequelize');
+const bcrypt        = require('bcryptjs');
+const jwt           = require('jsonwebtoken');
+const { sequelize } = require('../db/sequelize');
 
 const JWT_SECRET     = process.env.JWT_SECRET     || 'dev-fallback-inseguro';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 
-
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    require: true,
-    trim: true
+const User = sequelize.define('User', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
   },
-  password: {
-    type: String,
-    required: false,
-    trim: true,
-    minlength: [8, 'Minimo 8 caracteres'],
-    validate(value) {
-      if (value.includes('123456')) {
-        throw new Error('Password inseguro')
-      }
-    }
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
   },
   email: {
-    type: String,
+    type: DataTypes.STRING,
     unique: true,
-    required: false,
-    trim: true,
-    lowercase: true,
-    validate(value) {
-      if (!validator.isEmail(value)) {
-        throw new Error('Email incorrecto!')
+    validate: { isEmail: true }
+  },
+  password: {
+    type: DataTypes.STRING
+  },
+  nameUser: {
+    type: DataTypes.STRING,
+    unique: true,
+    allowNull: false
+  },
+  roles: {
+    type: DataTypes.STRING(50),
+    defaultValue: 'usuario'
+  }
+}, {
+  tableName:   'users',
+  underscored: true,  // nameUser → name_user, createdAt → created_at
+  hooks: {
+    beforeSave: async (user) => {
+      if (user.changed('password') && user.password) {
+        user.password = await bcrypt.hash(user.password, 8);
       }
     }
-  }, 
-  nameUser:{
-    type:String,
-    unique: true,
-    required:true
-  },
-  roles:{
-    type:String,
-    required:false
-  },
-  tokens: [{
-    token: {
-      type: String,
-      required: true
-    }
-  }]
-})
+  }
+});
 
-userSchema.virtual('personas',{
-  ref:'persona',
-  localField:'_id',
-  foreignField:'owner'
-})
+// Compatibilidad con código que usa ._id (heredado de MongoDB)
+User.prototype.toJSON = function () {
+  const v = this.get({ plain: true });
+  delete v.password;
+  v._id = v.id;
+  return v;
+};
 
-
-userSchema.methods.toJSON = function () {
-  const user = this
-  const userObject = user.toObject()
-
-  delete userObject.password
-  delete userObject.tokens
-
-  return userObject
-}
-
-userSchema.methods.generateAuthToken = async function () {
-  const user  = this;
-  const token = jwt.sign(
-    { _id: user._id.toString(), roles: user.roles },
+User.prototype.generateAuthToken = async function () {
+  return jwt.sign(
+    { id: this.id, roles: this.roles },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
   );
+};
 
-  user.tokens = user.tokens.concat({ token });
-  await user.save();
-  return token;
-}
+User.findByCredentials = async (nameUser, password) => {
+  const user = await User.findOne({ where: { name_user: nameUser } });
+  if (!user) throw new Error('Error de login');
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) throw new Error('Error de login');
+  return user;
+};
 
-
-
-userSchema.statics.findByCredentials = async (nameUser, password) => {
-  const user = await User.findOne({ nameUser })
-
-  if(!user) {
-      throw new Error('Error de login')
-  }
-
-  const isMatch = await bcrypt.compare(password, user.password)
-
-  if(!isMatch) {
-      throw new Error('Error de login')
-  }
-
-  return user
-}
-
-// middleware --> route ---> create user --> pre ---> save 
-
-userSchema.pre('save', async function(next) {
-  const user = this
-
-  if(user.isModified('password')) {
-      user.password = await bcrypt.hash(user.password, 8) 
-  }
-
-  next()
-})
-
-userSchema.pre('remove', async function(next) {
-  // Limpieza de datos relacionados al eliminar usuario (extender según necesidad)
-  next();
-})
-
-
-const User = mongoose.model('users', userSchema)
-
-module.exports = User
+module.exports = User;

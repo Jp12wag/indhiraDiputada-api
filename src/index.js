@@ -1,14 +1,14 @@
-// src/index.js — v0.2.0
+// src/index.js — v1.0.0 (Sequelize / PostgreSQL)
 require('dotenv').config();
-const { getConnection } = require('./db/conexion.js');
+const { connectPostgres } = require('./db/sequelize');
 const express  = require('express');
 const cors     = require('cors');
 
 const UserRoute      = require('./routers/user');
-const PersonaRoute   = require('./routers/persona.js');
-const DonacionRoute  = require('./routers/donacion.js');
-const InventarioRoute = require('./routers/inventario.js');
-const EntradasRoute  = require('./routers/entradas.js');
+const PersonaRoute   = require('./routers/persona');
+const DonacionRoute  = require('./routers/donacion');
+const InventarioRoute = require('./routers/inventario');
+const EntradasRoute  = require('./routers/entradas');
 
 const app = express();
 
@@ -23,26 +23,26 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 
-// Health check — sin auth
+// Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '0.2.0', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', version: '1.0.0', db: 'postgres', timestamp: new Date().toISOString() });
 });
 
-// Rutas de la API (prefijo /api para claridad)
+// Rutas con prefijo /api
 app.use('/api', UserRoute);
 app.use('/api', PersonaRoute);
 app.use('/api', DonacionRoute);
 app.use('/api', InventarioRoute);
 app.use('/api', EntradasRoute);
 
-// Mantener rutas sin prefijo por compatibilidad con el frontend actual
+// Rutas sin prefijo (compatibilidad con el frontend actual)
 app.use(UserRoute);
 app.use(PersonaRoute);
 app.use(DonacionRoute);
 app.use(InventarioRoute);
 app.use(EntradasRoute);
 
-// Manejo global de errores
+// Error handler global
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Error interno del servidor' });
@@ -51,9 +51,14 @@ app.use((err, req, res, next) => {
 const port = process.env.PORT || 3001;
 const host = process.env.HOST || '0.0.0.0';
 
-getConnection().then(() => {
-  app.listen(port, host, () => {
-    console.log(`✅  API corriendo en http://${host}:${port}`);
-    console.log(`✅  Health: http://${host}:${port}/health`);
+connectPostgres()
+  .then(() => {
+    app.listen(port, host, () => {
+      console.log(`✅  API corriendo en http://${host}:${port}`);
+      console.log(`✅  Health: http://${host}:${port}/health`);
+    });
+  })
+  .catch((err) => {
+    console.error('❌  No se pudo conectar a PostgreSQL:', err.message);
+    process.exit(1);
   });
-});

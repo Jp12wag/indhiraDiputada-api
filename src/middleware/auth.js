@@ -1,4 +1,5 @@
-// fix(auth): JWT secret movido a process.env.JWT_SECRET — v0.1.0
+// src/middleware/auth.js — v1.0.0 (Sequelize / PostgreSQL)
+// JWT es stateless: verificamos firma + que el usuario exista en DB.
 require('dotenv').config();
 const jwt  = require('jsonwebtoken');
 const User = require('../model/user');
@@ -19,9 +20,8 @@ const auth = async (req, res, next) => {
     const token  = header.replace('Bearer ', '');
     const decode = jwt.verify(token, JWT_SECRET);
 
-    // Verificar que el token siga activo en la lista del usuario
-    const user = await User.findOne({ _id: decode._id, 'tokens.token': token });
-    if (!user) throw new Error('Token inválido');
+    const user = await User.findByPk(decode.id);
+    if (!user) throw new Error('Usuario no encontrado');
 
     req.token = token;
     req.user  = user;

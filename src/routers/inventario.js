@@ -1,90 +1,67 @@
-const express = require('express')
-const Inventario = require('../model/inventario')
-const auth = require('../middleware/auth')
-const router = new express.Router();
+// src/routers/inventario.js — v1.0.0 (Sequelize / PostgreSQL)
+const express    = require('express');
+const Inventario = require('../model/inventario');
+const auth       = require('../middleware/auth');
+const router     = new express.Router();
 
-
-
+// Crear producto de inventario
 router.post('/inventario/register', auth, async (req, res) => {
-    try {
-      
-        const inventario = new Inventario({
-            ...req.body,
-            owner: req.user._id // Asignar el propietario de la persona como el ID del usuario autenticado
-        });
-
-        // Guardar la persona en la base de datos
-        await inventario.save();
-        res.status(201).send(inventario);
-    } catch (error) {
-        console.error('Error al crear inventario:', error);
-        res.status(400).send(error);
-    }
+  try {
+    const inventario = await Inventario.create({ ...req.body, ownerId: req.user.id });
+    res.status(201).json(inventario);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
-// Endpoint GET para consultar una persona por su cédula
 
+// Listar todo el inventario
 router.get('/inventario', auth, async (req, res) => {
-    try {
-        const inventario = await Inventario.find();
-        res.send(inventario);
-    } catch (error) {
-        res.status(500).send();
-    }
+  try {
+    const inventario = await Inventario.findAll();
+    res.json(inventario);
+  } catch (e) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
-router.get('/invetario/:id', auth, async (req, res) => {
-    const _id = req.params.id;
-
-    try {
-        const inventario = await Inventario.find({ _id, owner: req.user._id });
-
-        if (!inventario) {
-            return res.status(404).send();
-        }
-
-        res.send(inventario);
-    } catch (error) {
-        res.status(500).send();
-    }
+// Detalle por ID
+router.get('/inventario/:id', auth, async (req, res) => {
+  try {
+    const item = await Inventario.findByPk(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Producto no encontrado' });
+    res.json(item);
+  } catch (e) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
-
-
-
+// Actualizar cantidad / nombre / descripcion
 router.patch('/inventario/:id', auth, async (req, res) => {
-    const updates = Object.keys(req.body);
-    const allowedUpdates = ['nombre', 'cantidad', 'descripcion'];
-    const isValidOperation = updates.every(update => allowedUpdates.includes(update));
-    console.log();
-    if (!isValidOperation) {
-        return res.status(400).send({ error: 'Actualización inválida.' });
-    }
-    try {
-        const inventario = await Inventario.findOne({ _id: req.params.id, owner: req.user._id });
-        if (!inventario) {
-            return res.status(404).send();
-        }
-
-        updates.forEach(update => inventario[update] = req.body[update]);
-        await inventario.save();
-
-        res.send(inventario);
-    } catch (error) {
-        res.status(400).send(error);
-    }
+  const allowed = ['nombre', 'cantidad', 'descripcion'];
+  const updates = Object.keys(req.body);
+  const isValid = updates.every(u => allowed.includes(u));
+  if (!isValid) return res.status(400).json({ error: 'Actualización inválida.' });
+  try {
+    const item = await Inventario.findByPk(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Producto no encontrado' });
+    updates.forEach(k => { item[k] = req.body[k]; });
+    await item.save();
+    res.json(item);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
+// Eliminar
 router.delete('/inventario/:id', auth, async (req, res) => {
-    try {
-        const persona = await Inventario.findOneAndDelete({ _id: req.params.id});
-
-        if (!persona) {
-            return res.status(404).send();
-        }
-
-        res.send(persona);
-    } catch (error) {
-        res.status(500).send();
-    }
+  try {
+    const item = await Inventario.findByPk(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Producto no encontrado' });
+    await item.destroy();
+    res.json(item);
+  } catch (e) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
-module.exports = router
+
+module.exports = router;

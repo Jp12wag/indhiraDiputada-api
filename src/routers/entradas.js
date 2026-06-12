@@ -1,86 +1,62 @@
-const express = require('express')
-const Entradas = require('../model/Entradas')
-const auth = require('../middleware/auth')
-const router = new express.Router();
+// src/routers/entradas.js — v1.0.0 (Sequelize / PostgreSQL)
+const express  = require('express');
+const Entradas = require('../model/Entradas');
+const auth     = require('../middleware/auth');
+const router   = new express.Router();
 
-
-
+// Registrar entrada de inventario
 router.post('/entradas/register', auth, async (req, res) => {
-    try {
-      
-        const entradas = new Entradas({
-            ...req.body,
-            owner: req.user._id // Asignar el propietario de la persona como el ID del usuario autenticado
-        });
-
-        // Guardar la entradas en la base de datos
-        await entradas.save();
-        res.status(201).send(entradas);
-    } catch (error) {
-        console.error('Error al crear inventario:', error);
-        res.status(400).send(error);
-    }
-});
-// Endpoint GET para consultar una persona por su cédula
-
-router.get('/entradas', auth, async (req, res) => {
-    try {
-        const entradas = await Entradas.find();
-        res.send(entradas);
-    } catch (error) {
-        res.status(500).send();
-    }
-});
-
-router.get('/entradas/:id', auth, async (req, res) => {
-    const _id = req.params.id;
-
-    try {
-        const inventario = await Entradas.find({ _id, owner: req.user._id });
-
-        if (!inventario) {
-            return res.status(404).send();
-        }
-
-        res.send(inventario);
-    } catch (error) {
-        res.status(500).send();
-    }
-});
-
-
-
-
-router.patch('/entradas/:id', auth, async (req, res) => {
-    const updates = Object.keys(req.body);
-    const allowedUpdates = ['nombre', 'cantidad', 'descripcion'];
-    const isValidOperation = updates.every(update => allowedUpdates.includes(update));
-    console.log();
-    if (!isValidOperation) {
-        return res.status(400).send({ error: 'Actualización inválida.' });
-    }
-    try {
-        const inventario = await Entradas.findOne({ _id: req.params.id, owner: req.user._id });
-        if (!inventario) {
-            return res.status(404).send();
-        }
-
-        updates.forEach(update => inventario[update] = req.body[update]);
-        await inventario.save();
-
-        res.send(inventario);
-    } catch (error) {
-        res.status(400).send(error);
-    }
-});
-
-// fix(entradas): ruta DELETE corregida de /inventario/:id a /entradas/:id — v0.1.0
-router.delete('/entradas/:id', auth, async (req, res) => {
   try {
-    const entrada = await Entradas.findOneAndDelete({ _id: req.params.id });
+    const entrada = await Entradas.create({ ...req.body, ownerId: req.user.id });
+    res.status(201).json(entrada);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Listar todas las entradas
+router.get('/entradas', auth, async (req, res) => {
+  try {
+    const entradas = await Entradas.findAll();
+    res.json(entradas);
+  } catch (e) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Detalle por ID
+router.get('/entradas/:id', auth, async (req, res) => {
+  try {
+    const entrada = await Entradas.findByPk(req.params.id);
     if (!entrada) return res.status(404).json({ error: 'Entrada no encontrada' });
     res.json(entrada);
-  } catch (error) {
+  } catch (e) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Actualizar
+router.patch('/entradas/:id', auth, async (req, res) => {
+  const allowed = ['nombre', 'cantidad', 'descripcion'];
+  try {
+    const entrada = await Entradas.findByPk(req.params.id);
+    if (!entrada) return res.status(404).json({ error: 'Entrada no encontrada' });
+    allowed.forEach(k => { if (req.body[k] !== undefined) entrada[k] = req.body[k]; });
+    await entrada.save();
+    res.json(entrada);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Eliminar
+router.delete('/entradas/:id', auth, async (req, res) => {
+  try {
+    const entrada = await Entradas.findByPk(req.params.id);
+    if (!entrada) return res.status(404).json({ error: 'Entrada no encontrada' });
+    await entrada.destroy();
+    res.json(entrada);
+  } catch (e) {
     res.status(500).json({ error: 'Error al eliminar entrada' });
   }
 });
