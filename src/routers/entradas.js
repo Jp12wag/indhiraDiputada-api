@@ -74,17 +74,15 @@ router.patch('/entradas/:id', auth, async (req, res) => {
     }
 });
 
-router.delete('/inventario/:id', auth, async (req, res) => {
-    try {
-        const persona = await Entradas.findOneAndDelete({ _id: req.params.id});
-
-        if (!persona) {
-            return res.status(404).send();
-        }
-
-        res.send(persona);
-    } catch (error) {
-        res.status(500).send();
-    }
+// fix(entradas): ruta DELETE corregida de /inventario/:id a /entradas/:id — v0.1.0
+router.delete('/entradas/:id', auth, async (req, res) => {
+  try {
+    const entrada = await Entradas.findOneAndDelete({ _id: req.params.id });
+    if (!entrada) return res.status(404).json({ error: 'Entrada no encontrada' });
+    res.json(entrada);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al eliminar entrada' });
+  }
 });
-module.exports = router
+
+module.exports = router;

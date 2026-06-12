@@ -1,19 +1,21 @@
-const express = require('express')
-const User = require('../model/user')
-const auth = require('../middleware/auth')
-const router = new express.Router()
+// fix(users): agregar auth a POST /users y DELETE /users/:id — v0.1.0
+const express = require('express');
+const User    = require('../model/user');
+const auth    = require('../middleware/auth');
+const router  = new express.Router();
 
-router.post('/users', async (req, res) => {
-    const user = new User(req.body)
-    console.log(user);
-
-    try {
-        await user.save()
-        res.status(201).send(user)
-    } catch(e) {
-        console.log(e);
-        res.status(400).send(e)
-    }
+// Solo un Administrador puede crear nuevos usuarios
+router.post('/users', auth, async (req, res) => {
+  if (req.user.roles !== 'Administrador') {
+    return res.status(403).json({ error: 'Sin permiso para crear usuarios' });
+  }
+  try {
+    const user = new User(req.body);
+    await user.save();
+    res.status(201).send(user);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 })
 
 router.post('/users/login', async (req, res) => {
@@ -127,24 +129,19 @@ router.delete('/users/me', auth, async (req, res) => {
     }
 })
 
-// Ruta para eliminar un usuario por su ID
-router.delete('/users/:id', async (req, res) => {
-    const userId = req.params.id;
-  
-    try {
-      // Buscar y eliminar el usuario por su ID
-      const deletedUser = await User.findByIdAndDelete(userId);
-  
-      if (!deletedUser) {
-        return res.status(404).send('Usuario no encontrado');
-      }
-  
-      res.send(deletedUser);
-    } catch (error) {
-      console.error('Error al eliminar usuario:', error);
-      res.status(500).send('Error interno del servidor');
-    }
-  });
+// fix(users): auth requerida + solo Administrador puede eliminar — v0.1.0
+router.delete('/users/:id', auth, async (req, res) => {
+  if (req.user.roles !== 'Administrador') {
+    return res.status(403).json({ error: 'Sin permiso para eliminar usuarios' });
+  }
+  try {
+    const deletedUser = await User.findByIdAndDelete(req.params.id);
+    if (!deletedUser) return res.status(404).json({ error: 'Usuario no encontrado' });
+    res.json(deletedUser);
+  } catch (error) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
   
 
 module.exports = router

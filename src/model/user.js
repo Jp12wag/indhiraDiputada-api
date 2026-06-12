@@ -1,8 +1,12 @@
-const mongoose = require('mongoose')
-const validator = require('validator')
-const bcrypt = require('bcryptjs')
-const jwt = require('jsonwebtoken')
-//const Productos = require('../models/Productos')
+// fix(auth): JWT secret desde process.env — v0.1.0
+require('dotenv').config();
+const mongoose  = require('mongoose');
+const validator = require('validator');
+const bcrypt    = require('bcryptjs');
+const jwt       = require('jsonwebtoken');
+
+const JWT_SECRET     = process.env.JWT_SECRET     || 'dev-fallback-inseguro';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 
 
 const userSchema = new mongoose.Schema({
@@ -69,13 +73,16 @@ userSchema.methods.toJSON = function () {
 }
 
 userSchema.methods.generateAuthToken = async function () {
-  const user = this
-  const token = jwt.sign({ _id: user._id.toString() }, 'bootcamptalendig')
+  const user  = this;
+  const token = jwt.sign(
+    { _id: user._id.toString(), roles: user.roles },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN }
+  );
 
-  user.tokens = user.tokens.concat( { token } )
-  await user.save()
-
-  return token
+  user.tokens = user.tokens.concat({ token });
+  await user.save();
+  return token;
 }
 
 
@@ -109,11 +116,8 @@ userSchema.pre('save', async function(next) {
 })
 
 userSchema.pre('remove', async function(next) {
-  const user = this
-
-  await Task.deleteMany({ owner: user._id })
-
-  next()
+  // Limpieza de datos relacionados al eliminar usuario (extender según necesidad)
+  next();
 })
 
 

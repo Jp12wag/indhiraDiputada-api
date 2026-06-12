@@ -1,76 +1,61 @@
-const express = require('express');
-const router = express.Router();
-const auth = require('../middleware/auth')
+// fix(donaciones): auth requerida en todos los endpoints — v0.1.0
+const express  = require('express');
+const router   = express.Router();
+const auth     = require('../middleware/auth');
 const Donacion = require('../model/donacion');
 
-router.post('/donaciones', async (req, res) => {
-    const donacion = new Donacion(req.body);
-
-    try {
-        await donacion.save();
-        res.status(201).send(donacion);
-    } catch (error) {
-        res.status(400).send(error);
-    }
+// Crear donación — requiere auth
+router.post('/donaciones', auth, async (req, res) => {
+  try {
+    const donacion = new Donacion({ ...req.body, historial: req.user._id });
+    await donacion.save();
+    res.status(201).json(donacion);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
-router.get('/donaciones', async (req, res) => {
-    try {
-        const donaciones = await Donacion.find();
-        res.send(donaciones);
-    } catch (error) {
-        res.status(500).send(error);
-    }
+// Listar todas — requiere auth
+router.get('/donaciones', auth, async (req, res) => {
+  try {
+    const donaciones = await Donacion.find();
+    res.json(donaciones);
+  } catch (error) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
-router.get('/donaciones/:id', async (req, res) => {
-    try {
-        const donacion = await Donacion.findById(req.params.id);
-
-        if (!donacion) {
-            return res.status(404).send();
-        }
-
-        res.send(donacion);
-    } catch (error) {
-        res.status(500).send(error);
-    }
+// IMPORTANTE: la ruta específica /persona/:id debe ir ANTES de /:id
+// para que Express no la interprete como un ID de donación
+router.get('/donaciones/persona/:personaId', auth, async (req, res) => {
+  try {
+    const donaciones = await Donacion.find({ owner: req.params.personaId });
+    res.json(donaciones); // array vacío si no hay — no lanzar 404
+  } catch (error) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
-// Obtener todas las donaciones por persona (owner)
-router.get('/donaciones/persona/:personaId', async (req, res) => {
-    try {
-        const donaciones = await Donacion.find({ owner: req.params.personaId });
-
-        if (donaciones.length === 0) {
-            return res.status(404).send({ message: 'No se encontraron donaciones para esta persona.' });
-        }
-
-        res.send(donaciones);
-    } catch (error) {
-        res.status(500).send(error);
-    }
+// Detalle de una donación — requiere auth
+router.get('/donaciones/:id', auth, async (req, res) => {
+  try {
+    const donacion = await Donacion.findById(req.params.id);
+    if (!donacion) return res.status(404).json({ error: 'Donación no encontrada' });
+    res.json(donacion);
+  } catch (error) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
+// Eliminar donación — requiere auth
 router.delete('/donaciones/:id', auth, async (req, res) => {
-    console.log('DELETE request received');
-    console.log('User ID from auth middleware:', req.user._id);
-    console.log('Donation ID from params:', req.params.id);
-
-    try {
-        const donacion = await Donacion.findOneAndDelete({ _id: req.params.id});
-
-        if (!donacion) {
-            console.log('Donation not found or user is not the owner');
-            return res.status(404).send({ error: 'Donación no encontrada.' });
-        }
-
-        console.log('Donation deleted successfully:', donacion);
-        res.status(200).send(donacion);
-    } catch (error) {
-        console.error('Error al eliminar donación:', error);
-        res.status(500).send({ error: 'Error al eliminar la donación.' });
-    }
+  try {
+    const donacion = await Donacion.findOneAndDelete({ _id: req.params.id });
+    if (!donacion) return res.status(404).json({ error: 'Donación no encontrada' });
+    res.json(donacion);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al eliminar la donación' });
+  }
 });
 
 module.exports = router;

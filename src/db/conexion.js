@@ -1,21 +1,21 @@
+// fix(auth): credenciales movidas a .env — v0.1.0
 require('dotenv').config();
 const mongoose = require('mongoose');
-const database = 'indhiraDiputada';
-const uri = `mongodb+srv://walcantara:Jipon1212@indhiradiputada.gtnkrco.mongodb.net/?retryWrites=true&w=majority&appName=${database}`;
 
-const connectionPromise =mongoose.connect(uri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  console.log('Conexión a MongoDB en la nube exitosa');
-})
-.catch((error) => {
-  console.error('Error al conectar a MongoDB en la nube:', error);
-});
+const uri = process.env.MONGODB_URI;
 
-module.exports = {
-    getConnection: () => connectionPromise,
-};
+if (!uri) {
+  console.error('❌  MONGODB_URI no está definida en .env — copia .env.example a .env');
+  process.exit(1);
+}
+
+const connectionPromise = mongoose.connect(uri)
+  .then(() => console.log('✅  Conexión a MongoDB exitosa'))
+  .catch((error) => {
+    console.error('❌  Error conectando a MongoDB:', error.message);
+    process.exit(1);
+  });
+
+module.exports = { getConnection: () => connectionPromise };
 
 
