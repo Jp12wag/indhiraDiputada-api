@@ -1,4 +1,4 @@
-// src/index.js — v0.1.0
+// src/index.js — v0.2.0
 require('dotenv').config();
 const { getConnection } = require('./db/conexion.js');
 const express  = require('express');
@@ -25,7 +25,7 @@ app.use(express.json({ limit: '10mb' }));
 
 // Health check — sin auth
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '0.1.0', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', version: '0.2.0', timestamp: new Date().toISOString() });
 });
 
 // Rutas de la API (prefijo /api para claridad)
