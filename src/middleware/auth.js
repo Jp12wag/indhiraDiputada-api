@@ -23,8 +23,9 @@ const auth = async (req, res, next) => {
     const user = await User.findByPk(decode.id);
     if (!user) throw new Error('Usuario no encontrado');
 
-    req.token = token;
-    req.user  = user;
+    req.token        = token;
+    req.user         = user;
+    req.user.permisos = decode.permisos || [];  // del JWT
     next();
   } catch (e) {
     res.status(401).json({ error: 'No autorizado' });

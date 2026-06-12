@@ -23,12 +23,14 @@ router.post('/users', auth, async (req, res) => {
   }
 });
 
-// Login
+// Login — devuelve user, token y permisos del rol
 router.post('/users/login', async (req, res) => {
   try {
-    const user  = await User.findByCredentials(req.body.nameUser, req.body.password);
-    const token = await user.generateAuthToken();
-    res.json({ user, token });
+    const user    = await User.findByCredentials(req.body.nameUser, req.body.password);
+    const token   = await user.generateAuthToken();
+    const jwt     = require('jsonwebtoken');
+    const decoded = jwt.decode(token);
+    res.json({ user, token, permisos: decoded.permisos || [] });
   } catch (e) {
     res.status(400).json({ error: 'Credenciales incorrectas' });
   }

@@ -56,8 +56,25 @@ User.prototype.toJSON = function () {
 };
 
 User.prototype.generateAuthToken = async function () {
+  // Cargar permisos del rol desde la DB
+  let permisos = [];
+  try {
+    const { sequelize: sq } = require('../db/sequelize');
+    const rows = await sq.query(
+      `SELECT p.recurso || ':' || p.accion AS permiso
+       FROM permisos p
+       JOIN roles_permisos rp ON rp.permiso_id = p.id
+       JOIN roles r ON r.id = rp.rol_id
+       WHERE r.nombre = :rolNombre`,
+      { replacements: { rolNombre: this.roles }, type: sq.QueryTypes.SELECT }
+    );
+    permisos = rows.map(r => r.permiso);
+  } catch (_) {
+    // Si las tablas RBAC no existen aún, continuar sin permisos
+  }
+
   return jwt.sign(
-    { id: this.id, roles: this.roles },
+    { id: this.id, roles: this.roles, permisos },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
   );
